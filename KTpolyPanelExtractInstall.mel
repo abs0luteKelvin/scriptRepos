@@ -1,0 +1,47 @@
+{
+    global string $gShelfTopLevel;
+
+    string $shelves = `tabLayout -q -selectTab $gShelfTopLevel`;
+
+    // Now add the button
+    string $myButton = `shelfButton
+            -parent $shelves           // Set parent Shelf to cuurent shelf
+	        -enableCommandRepeat 1
+			-flexibleWidthType 3
+			-flexibleWidthValue 32
+			-enable 1
+			-width 35
+			-height 34
+			-manage 1
+			-visible 1
+			-preventOverride 0
+			-annotation "User Script" 
+			-enableBackground 0
+			-backgroundColor 0 0 0 
+			-highlightColor 0.321569 0.521569 0.65098 
+			-align "center" 
+			-label "PolyPanelExtract" 
+			-labelOffset 0
+			-rotation 0
+			-flipX 0
+			-flipY 0
+			-useAlpha 1
+			-font "plainLabelFont" 
+			-imageOverlayLabel "pExt" 
+			-overlayLabelColor 0.8 0.8 0.8 
+			-overlayLabelBackColor 0 0 0 0.5 
+			-image "C:/Users/Keltam_PC/Documents/maya/2020/prefs/icons/KTpolyPanelExtract.png" 
+			-image1 "C:/Users/Keltam_PC/Documents/maya/2020/prefs/icons/KTpolyPanelExtract.png" 
+			-style "iconOnly" 
+			-marginWidth 1
+			-marginHeight 1
+			-command "source KTpolyPanelExtract.mel;\n{\n        if (`window -ex extractPresetwWIN`) {\n        deleteUI extractPresetwWIN;\n        }\nstring $window = `window extractPresetwWIN`;\nrowColumnLayout -numberOfRows 1;\niconTextButton  -style \"iconOnly\"\n    //-command \"spotLight\"\n    -image1 \"ExtStandardSml.png\" -imageOverlayLabel \"Stand\" -command \"extPanelStandard\";\niconTextButton  -style \"iconOnly\"\n    //-command \"spotLight\"\n    -image1 \"ExtHardEdgeSml.png\" -imageOverlayLabel \"Hard\" -command \"extPanelHardEdge\";\niconTextButton  -style \"iconOnly\"\n    //-command \"spotLight\"\n    -image1 \"ExtRoundCornerSml.png\" -imageOverlayLabel \"Round\" -command \"extPanelRoundCorner\";\niconTextButton  -style \"iconOnly\"\n    //-command \"spotLight\"\n    -image1 \"ExtSideEdgeSml.png\" -imageOverlayLabel \"Side\" -command \"extPanelSideSupport\";\niconTextButton  -style \"iconOnly\"\n    //-command \"spotLight\"\n    -image1 \"ExtComplexSml.png\" -imageOverlayLabel \"Cmplx\" -command \"extPanelComplex\";\n\n\nshowWindow $window;\n}" 
+			-sourceType "mel" 
+			-commandRepeatable 1
+			-flat 1
+			-mi "Standard" ( "source KTpolyPanelExtract.mel;\nextPanelStandard;" )
+			-mi "Hard Edge" ( "source KTpolyPanelExtract.mel;\nextPanelHardEdge;" )
+			-mi "Side Support" ( "source KTpolyPanelExtract.mel;\nextPanelSideSupport;" )
+			-mi "Complex" ( "source KTpolyPanelExtract.mel;\nextPanelComplex" )
+			-mi "Round Corner" ( "source KTpolyPanelExtract.mel;\nextPanelRoundCorner;" )`;
+}
