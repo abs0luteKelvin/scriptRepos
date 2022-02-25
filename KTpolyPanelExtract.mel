@@ -1,0 +1,444 @@
+//======================================================================================
+//KTPolyPanelExtract
+//Version 2.2
+//
+//Changelog:
+//
+// To do
+//
+// still need to fix issues with instance meshes 
+//
+//Version 2.3
+//- Added auto UV option
+//- All tweaks in Panel Tweak Editor is now realtime update
+//- Fixed bug of select other meshes after creation
+//- Fixed bug of wrong faces being used for Shell creation
+//- Closing Tweak window clears history now
+//- Added thickness option now
+//- Ability to Reset Values in Panel Tweak window
+//- Fixed issue of round corner preset failing on meshes with no corner edges
+//
+//Version 2.2
+//
+//- fixed lite version launch issues
+//
+//Version 2.1
+//- Fixed the issue with Round Corner Preset for Hard angled geo
+//
+//Version 2.0
+//- added Round Corner Preset
+//- added Toolbox option for Presets (UI update)
+//- added Window for adjusting Support edges and Bevels (UI update)
+//- changed single click to opening Toolbox (UI update)
+//- changed hard edge preset to right click option (UI update)
+//- moved standard Panel to right click option (UI update)
+//
+//Installation:
+// Put this script into C:\Users\USERNAME\Documents\maya\20XX\scripts
+// Put icons into C:\Users\USERNAME\Documents\maya\20XX\prefs\icons
+// Run KTpolyPanelExtractInstall.mel in script editor
+// 
+// For Bugs Please reach me at kelvintamkt@gmail.com or message me through Artstation
+//======================================================================================
+
+global proc string[] getOps(){
+    string $Shell[]= `ls -selection -type "transform"`;
+    if (`size ($Shell)` < 1)
+    {
+        print ("Please Select One Object Only" + "\n");
+    }
+    string $OPS[] = `listHistory -breadthFirst $Shell[0]`;
+    return $OPS;
+}
+
+global proc autoUVShell(){
+	global int $autoUVActive;
+	if ($autoUVActive == 1){
+	FreezeTransformations;
+	polyAutoProjection -lm 0 -pb 0 -ibd 1 -cm 0 -l 2 -sc 1 -o 0 -p 6 -ps 0.2 -ws 0;
+	SelectToggleMode;
+    changeSelectMode -object;
+	$autoUVActive = 0;
+	}
+}
+
+global proc extractPanelTweak(){
+    if (`window -ex extractPanelsWIN`) {
+        deleteUI extractPanelsWIN;
+    }
+    //window -title "Extract Panels" -closeCommand "DeleteHistory" extractPanelsWIN;
+    window -title "Extract Panels" extractPanelsWIN;
+    columnLayout -adj 1;
+    string $operation[]= `getOps`;
+    if (`gmatch $operation[1] "*Corner*"` == 1){
+        float $CBVal = `getAttr ($operation[1] + ".fraction")`;
+        float $CBEAmt = `getAttr ($operation[1] + ".segments")`;
+        attrFieldSliderGrp -label "Corner Roundness " -minValue 0 -maxValue 1 -precision 3 -adjustableColumn 3 -at ($operation[1] + ".fraction") sliderCtrl1;
+        popupMenu -parent sliderCtrl1 cornerResetPopup;
+        menuItem -label "Reset" -command ("setAttr (\""+$operation[1]+"\" + \".fraction\") 0.5") ;
+        attrFieldSliderGrp -label "Corner Segments " -minValue 0 -maxValue 10 -fieldStep 1 -sliderStep 1 -precision 0 -adjustableColumn 3 -at ($operation[1] + ".segments") sliderCtrl2;
+        popupMenu -parent sliderCtrl2 SegmentsResetPopup;
+        menuItem -label "Reset" -command ("setAttr (\""+$operation[1]+"\" + \".segments\") 4");
+        float $SEVal = `getAttr ($operation[2] + ".fraction")`;
+        attrFieldSliderGrp -label "Support Edge " -minValue 0 -maxValue 1 -precision 3 -at ($operation[2] + ".fraction") sliderCtrl3;
+        popupMenu -parent sliderCtrl3 SupportResetPopup;
+        menuItem -label "Reset" -command ("setAttr (\""+$operation[2]+"\" + \".fraction\") 0.5");
+        float $PEVal = `getAttr ($operation[3] + ".localTranslateZ")`;
+        attrFieldSliderGrp -label "Panel Extrude " -minValue 0 -maxValue 10 -precision 3 -at ($operation[3] + ".localTranslateZ") sliderCtrl4;
+        popupMenu -parent sliderCtrl4 PanelExtResetPopup;
+        menuItem -label "Reset" -command ("setAttr (\""+$operation[3]+"\" + \".localTranslateZ\") 0.05");
+        attrFieldSliderGrp -label "Panel Thickness " -minValue 0 -maxValue 10 -precision 3 -at ($operation[3] + ".thickness") sliderCtrl5;
+        popupMenu -parent sliderCtrl5 PanelThickResetPopup;
+        menuItem -label "Reset" -command ("setAttr (\""+$operation[3]+"\" + \".thickness\") 0");
+    }
+    else
+    {
+        //float $SEVal = `getAttr ($operation[1] + ".fraction")`;
+        attrFieldSliderGrp -label "Support Edge " -minValue 0 -maxValue 1 -precision 3 -at ($operation[1] + ".fraction") sliderCtrl1B;
+        popupMenu -parent sliderCtrl1B SupportResetPopup;
+        menuItem -label "Reset" -command ("setAttr (\""+$operation[1]+"\" + \".fraction\") 0.5");
+        //float $PEVal = `getAttr ($operation[2] + ".localTranslateZ")`;
+        attrFieldSliderGrp -label "Panel Extrude " -minValue 0 -maxValue 10 -precision 3 -at ($operation[2] + ".localTranslateZ") sliderCtrl2B;
+        popupMenu -parent sliderCtrl2B PanelExtResetPopup;
+        menuItem -label "Reset" -command ("setAttr (\""+$operation[2]+"\" + \".localTranslateZ\") 0.05");
+        attrFieldSliderGrp -label "Panel Thickness " -minValue 0 -maxValue 10 -precision 3 -at ($operation[2] + ".thickness") sliderCtrl3B;
+        popupMenu -parent sliderCtrl3B PanelThickResetPopup;
+        menuItem -label "Reset" -command ("setAttr (\""+$operation[2]+"\" + \".thickness\") 0");
+    }
+	global int $autoUVActive;
+	checkBoxGrp -numberOfCheckBoxes 1 -label "Auto UV" -v1 false -onCommand1 "$autoUVActive = 1;" -offCommand1 "$autoUVActive = 0;" autoUVCheckBox;
+    setParent..;
+    columnLayout -adj 1;
+    button -label "Complete" -align "center" -command "DeleteHistory; autoUVShell; deleteUI extractPanelsWIN;" completeBtn;
+    showWindow;
+}
+
+
+global proc extPanelStandard()
+{
+    if (size(`ls -sl`) < 1 || size(`polyEvaluate -faceComponent`) < 1 || size(`ls -sl -transforms`) >= 1){
+        print "Please select somes faces";
+    }
+    
+    else{
+		string $facesInit[] = `ls -sl -fl`;
+        SelectToggleMode;
+        changeSelectMode -object;
+        string $storeObj[] = `ls -sl -transforms`;
+        string $newComp[] ;
+        string $dupObj[] = `duplicate -n "ShellExtract"`;
+        for ($f in $facesInit)
+        {
+            string $comp = `match "\\..+" $f`;
+            $newComp[size($newComp)] = ($dupObj[0] + $comp);
+        }
+		string $shapeName[] = `listRelatives -s -fullPath $dupObj[0]`;
+        //changeSelectMode -component;
+        //select -deselect $storeObj[0];
+        select -r $newComp;
+        InvertSelection;
+        delete;
+        //select -r $newComp;
+        changeSelectMode -object;
+        select -r $dupObj[0];
+        polyExtrudeFacet -localTranslateZ 0.05;
+		select -r $dupObj;
+        string $pExtrude[] = `listConnections -type "polyExtrudeFace" $shapeName[0]`;
+        //print $pExtrude;
+        select -addFirst $pExtrude[0];
+        ShowManipulatorTool;
+    	CenterPivot;
+    	}
+}
+
+global proc extPanelHardEdge(){
+    if (size(`ls -sl`) < 1 || size(`polyEvaluate -faceComponent`) < 1 || size(`ls -sl -transforms`) >= 1){
+        print "Please select somes faces";
+    }
+    
+    else{
+        string $facesInit[] = `ls -sl -fl`;
+        SelectToggleMode;
+        changeSelectMode -object;
+        string $storeObj[] = `ls -sl -transforms`;
+        string $newComp[] ;
+        string $dupObj[] = `duplicate -n "ShellExtract"`;
+        for ($f in $facesInit)
+        {
+            string $comp = `match "\\..+" $f`;
+            $newComp[size($newComp)] = ($dupObj[0] + $comp);
+        }
+        string $shapeName[] = `listRelatives -s -fullPath $dupObj[0]`;
+        string $storeEdges[];
+        string $edgeloop[];
+        changeSelectMode -component;
+		select -r $newComp;
+        InvertSelection;
+        delete;
+		polySoftEdge -angle 35 $dupObj;
+        polySelectConstraint -mode 3 -type 0x8000 -smoothness 1;
+        resetPolySelectConstraint;
+        $storeEdges = `ls -sl`;
+        select -deselect;
+        SelectToggleMode;
+        changeSelectMode -object;
+        string $panelExtrude[] = `polyExtrudeFacet -localTranslateZ 0.05 $dupObj[0]`;
+		rename $panelExtrude[0] "Panel_Extrude";
+        ConvertSelectionToEdges;
+        select -replace $storeEdges;
+        polySelectConstraint -mode 3 -type 0x8000 -smoothness 1;
+		resetPolySelectConstraint;
+        polySelectConstraint -type 0x8000 -propagate 4 -m2a 31 -m3a 91;
+        $edgeLoop = `ls -sl`;
+        resetPolySelectConstraint;
+        select -add $edgeLoop;
+        string $hardEdgeBevel[] = `polyBevel3 -fraction 0.5 -offsetAsFraction 1 -autoFit 1 -depth 1 -mitering 0 -miterAlong 0 -chamfer 0 -segments 1 
+        -worldSpace 1 -smoothingAngle 30 -subdivideNgons 1 -mergeVertices 1 -mergeVertexTolerance 0.001
+        -miteringAngle 180 -angleTolerance 180 -ch 1`;
+		rename $hardEdgeBevel[0] "hardEdgeBevel";
+        select -r $dupObj;
+		CenterPivot;
+        string $pExtrude[] = `listConnections -type "polyExtrudeFace" $shapeName[0]`;
+        //print $pExtrude;
+        select -addFirst $pExtrude[0];
+        ShowManipulatorTool;
+		extractPanelTweak;
+		}
+}
+
+
+global proc extPanelSideSupport(){
+    if (size(`ls -sl`) < 1 || size(`polyEvaluate -faceComponent`) < 1 || size(`ls -sl -transforms`) >= 1){
+        print "Please select somes faces";
+    }
+    
+    else{
+        string $facesInit[] = `ls -sl -fl`;
+        SelectToggleMode;
+        changeSelectMode -object;
+        string $storeObj[] = `ls -sl -transforms`;
+        string $newComp[] ;
+        string $dupObj[] = `duplicate -n "ShellExtract"`;
+        for ($f in $facesInit)
+        {
+            string $comp = `match "\\..+" $f`;
+            $newComp[size($newComp)] = ($dupObj[0] + $comp);
+        }
+        
+        //print $newComp;
+
+        string $shapeName[] = `listRelatives -s -fullPath $dupObj[0]`;
+        string $storeEdges[];
+        string $edgeloop[];
+        changeSelectMode -component;
+		select -r $newComp;
+        InvertSelection;
+        Delete;
+        int $faceNumInit[] = `polyEvaluate -face $dupObj[0]`;
+        //select -deselect;
+        //SelectToggleMode;
+        //changeSelectMode -object;
+        string $PanelExtrude[] = `polyExtrudeFacet -localTranslateZ 0.01 $dupObj[0]`;
+		rename $PanelExtrude[0] "Panel_Extrude";
+        int $topBtmFacesNum = ($faceNumInit[0] * 2) - 1;
+        string $topBtmFaceSet = ($dupObj[0] + ".f" + "[0:" + $topBtmFacesNum + "]"); 
+        select -replace $topBtmFaceSet;
+        ConvertSelectionToEdgePerimeter;
+        string $sideSupport[] = `polyBevel3 -fraction 0.5 -offsetAsFraction 1 -autoFit 1 -depth 1 -mitering 1 -miterAlong 0 -chamfer 0 -segments 1 
+        -worldSpace 1 -smoothingAngle 30 -subdivideNgons 1 -mergeVertices 1 -mergeVertexTolerance 0.0001 
+        -miteringAngle 180 -angleTolerance 180 -ch 1`;
+		rename $sideSupport[0] "Side_bevel";
+        select -r $dupObj[0];
+		CenterPivot;
+        string $pExtrude[] = `listConnections -type "polyExtrudeFace" $shapeName[0]`;
+        //print $pExtrude;
+        select -addFirst $pExtrude[0];
+        ShowManipulatorTool;
+		extractPanelTweak;
+    }
+}
+
+global proc extPanelComplex()
+{
+    if (size(`ls -sl`) < 1 || size(`polyEvaluate -faceComponent`) < 1 || size(`ls -sl -transforms`) >= 1){
+        print "Please select somes faces";
+    }
+    
+    else{
+        string $facesInit[] = `ls -sl -fl`;
+        SelectToggleMode;
+        changeSelectMode -object;
+        string $storeObj[] = `ls -sl -transforms`;
+        string $newComp[] ;
+        string $dupObj[] = `duplicate -n "ShellExtract"`;
+        for ($f in $facesInit)
+        {
+            string $comp = `match "\\..+" $f`;
+            $newComp[size($newComp)] = ($dupObj[0] + $comp);
+        }
+        string $shapeName[] = `listRelatives -s -fullPath $dupObj[0]`;
+        string $storeEdges[];
+        string $edgeloop[];
+        changeSelectMode -component;
+		select -r $newComp;
+        InvertSelection;
+        delete;
+		select -add ($dupObj[0] + ".vtx[*]");
+		polyMergeVertex  -d 0.5 -am 1 -ch 1;
+		polySoftEdge -angle 35 $dupObj;
+        polySelectConstraint -mode 3 -type 0x8000 -smoothness 1;
+        resetPolySelectConstraint;
+        $storeEdges = `ls -sl`;
+        select -deselect;
+        SelectToggleMode;
+        changeSelectMode -object;
+        string $panelExtrude[] = `polyExtrudeFacet -thickness 0.05 $dupObj[0]`;
+		rename $panelExtrude[0] "Panel_Extrude";
+        ConvertSelectionToEdges;
+        select -replace $storeEdges;
+        polySelectConstraint -mode 3 -type 0x8000 -smoothness 1;
+		resetPolySelectConstraint;
+        polySelectConstraint -type 0x8000 -propagate 4 -m2a 31 -m3a 91;
+        $edgeLoop = `ls -sl`;
+        resetPolySelectConstraint;
+        select -add $edgeLoop;
+        string $hardEdgeBevel[] = `polyBevel3 -fraction 0.5 -offsetAsFraction 1 -autoFit 1 -depth 1 -mitering 0 -miterAlong 0 -chamfer 0 -segments 1 
+        -worldSpace 1 -smoothingAngle 30 -subdivideNgons 1 -mergeVertices 1 -mergeVertexTolerance 0.001
+        -miteringAngle 180 -angleTolerance 180 -ch 1`;
+		rename $hardEdgeBevel[0] "hardEdgeBevel";
+        select -r $dupObj;
+		CenterPivot;
+        string $pExtrude[] = `listConnections -type "polyExtrudeFace" $shapeName[0]`;
+        //print $pExtrude;
+        select -addFirst $pExtrude[0];
+        ShowManipulatorTool;
+		extractPanelTweak;
+		}
+}
+
+global proc extPanelRoundCorner()
+{
+    if (size(`ls -sl`) < 1 || size(`polyEvaluate -faceComponent`) < 1 || size(`ls -sl -transforms`) >= 1){
+        print "Please select somes faces";
+    }
+    
+    else{
+        string $facesInit[] = `ls -sl -fl`;
+        SelectToggleMode;
+        changeSelectMode -object;
+        string $storeObj[] = `ls -sl -transforms`;
+        string $newComp[] ;
+        string $dupObj[] = `duplicate -n "ShellExtract"`;
+        for ($f in $facesInit)
+        {
+            string $comp = `match "\\..+" $f`;
+            $newComp[size($newComp)] = ($dupObj[0] + $comp);
+        }
+        string $shapeName[] = `listRelatives -s -fullPath $dupObj[0]`;
+        string $storeEdges[];
+        string $edgeloop[];
+        changeSelectMode -component;
+		select -r $newComp;
+        InvertSelection;
+        delete;
+        int $faceNumInit[] = `polyEvaluate -face $dupObj[0]`;
+        select -deselect;
+        SelectToggleMode;
+        changeSelectMode -object;
+        string $panelExtrude[] = `polyExtrudeFacet -localTranslateZ 0.05 $dupObj[0]`;
+        rename $panelExtrude[0] "Panel_Extrude";
+        int $topBtmFacesNum = ($faceNumInit[0] * 2) - 1;
+        string $topBtmFaceSet = ($dupObj[0] + ".f" + "[0:" + $topBtmFacesNum + "]"); 
+        select -replace $topBtmFaceSet;
+        ConvertSelectionToEdgePerimeter;
+        string $supportEdge[] = `polyBevel3 -fraction 0.5 -offsetAsFraction 1 -autoFit 1 -depth 1 -mitering 1 -miterAlong 0 -chamfer 0 -segments 1 
+        -worldSpace 1 -smoothingAngle 30 -subdivideNgons 1 -mergeVertices 1 -mergeVertexTolerance 0.0001 
+        -miteringAngle 180 -angleTolerance 180 -ch 1`;
+        rename $supportEdge[0] "SupportBevel";
+    	polySelectConstraint -type 3 -m 3 -or on -orb 3 3; //for selecting outer corners
+		string $selConstraint[] = `ls -sl -fl`;
+		polySelectConstraint -type 3 -m 0 -or off -orb 0 0;
+    	if (`size($selConstraint)` > 0)
+		{
+            string $outerCorners[] = `ls -sl -fl`;    
+            polySelectConstraint -type 3 -m 3 -or on -orb 5 5; //for selecting inner cornders;
+            polySelectConstraint -type 3 -m 0 -or off -orb 0 0;
+            select -add $outerCorners;
+           	string $compSel[]= `ls -sl -fl`;
+           	string $storeEdgeLoop[];
+          	int $numTokens;
+          	string $buffer[];
+          	int $x;
+           	int $id[];
+           	string $tmpString[];
+           	string $edgeList[];
+           	int $tmpCounter;
+           	for($comp in $compSel)
+           	{
+              $numTokens = `tokenize $comp "[:]" $buffer`;
+              //print ($buffer[1] + "\n");
+              $id[$x] = int($buffer[1]);
+              //print ($id[$x] + "\n");
+              $x++;
+           	} 	
+           	$count = (size($compSel))/ 2;
+            	for($i=0; $i < (size($compSel))/ 2 ; $i++)
+            	{
+                 	select -r ($dupObj[0] + ".vtx[" + $id[$i] + ":" + ($id[$i] + 1) + "]");
+                 	SelectEdgeLoopSp;
+                 	ConvertSelectionToContainedEdges;
+                 	$tmpString = `ls -sl -fl`;
+                 	$tmpCounter = `size $tmpString`;
+                 	appendStringArray($edgeList, $tmpString, $tmpCounter);
+                	//print $edgeList[$i];
+               	} 
+               	
+               	dR_DoCmd("modeEdge");
+                string $CornerBevel[] = `polyBevel3 -fraction 0.5 -offsetAsFraction 1 -autoFit 1 -depth 1 -mitering 0 -miterAlong 0 -chamfer 1 -segments 4 -worldSpace 1 -smoothingAngle 30 -subdivideNgons 1 -mergeVertices 1 -mergeVertexTolerance 0.0001 -miteringAngle 180 -angleTolerance 180 -ch 1 $edgeList`;
+            	rename $CornerBevel[0] "Corner_Bevel";	
+            	select -r $dupObj;
+            	CenterPivot;
+    			string $pExtrude[] = `listConnections -type "polyExtrudeFace" $shapeName[0]`;
+    			//print $pExtrude;
+    			select -addFirst $pExtrude[0];
+               	ShowManipulatorTool;
+               	extractPanelTweak;
+        }
+		else
+		{
+			select -r $dupObj;
+			CenterPivot;
+			string $pExtrude[] = `listConnections -type "polyExtrudeFace" $shapeName[0]`;
+			//print $pExtrude;
+			select -addFirst $pExtrude[0];
+			ShowManipulatorTool;
+			extractPanelTweak;
+		} 
+	}		
+}
+{
+        if (`window -ex extractPresetwWIN`) {
+        deleteUI extractPresetwWIN;
+        }
+string $window = `window extractPresetwWIN`;
+rowColumnLayout -numberOfRows 1;
+iconTextButton  -style "iconOnly"
+    //-command "spotLight"
+    -image1 "ExtStandardSml.png" -imageOverlayLabel "Stand" -command "extPanelStandard";
+iconTextButton  -style "iconOnly"
+    //-command "spotLight"
+    -image1 "ExtHardEdgeSml.png" -imageOverlayLabel "Hard" -command "extPanelHardEdge";
+iconTextButton  -style "iconOnly"
+    //-command "spotLight"
+    -image1 "ExtRoundCornerSml.png" -imageOverlayLabel "Round" -command "extPanelRoundCorner";
+iconTextButton  -style "iconOnly"
+    //-command "spotLight"
+    -image1 "ExtSideEdgeSml.png" -imageOverlayLabel "Side" -command "extPanelSideSupport";
+iconTextButton  -style "iconOnly"
+    //-command "spotLight"
+    -image1 "ExtComplexSml.png" -imageOverlayLabel "Cmplx" -command "extPanelComplex";
+
+
+showWindow $window;
+}
+
