@@ -1,0 +1,218 @@
+//======================================================================================
+//KTHolePuncher (created by Kelvin Tam)
+//Version 1.0
+//
+//Changelog:
+//
+//vertion 1.1 hotfix
+//
+// Fixed issue of face collapsing into itself
+//
+//Version 1
+//Release
+//
+//Installation:
+// Put the scripts into C:\Users\USERNAME\Documents\maya\20XX\scripts
+// Put icons into C:\Users\USERNAME\Documents\maya\20XX\prefs\icons
+// 
+// 
+// Please do not resell or redistribute
+//
+// For Bugs Please reach me at kelvintamkt@gmail.com or message me through Artstation
+//======================================================================================
+
+
+source getTransformFromComponent.mel;
+
+////script derived from http://ewertb.mayasound.com/mel/mel.055.php///
+global proc string testShareEdge()
+{
+    string $vte[] = `polyInfo -vertexToEdge`;
+    string $tokens[];
+    int $edgeOrder[];
+    clear $edgeOrder;
+    int $t;
+    int $storeEdgeID[]; 
+    //string $returnString;   
+    for ($ed in $vte)
+    {
+        tokenize $ed " :\n\r" $tokens;
+        for ( $t = 2; $t < `size $tokens`; $t++ )
+        {
+          $edgeOrder[`size $edgeOrder`] = $tokens[$t]; //store edges id into edgeOrder
+        }        
+    }
+            //print $edgeOrder; // debug
+    string $returnString = "no";
+    
+    for($i=0;$i<size($edgeOrder);$i++)
+    
+    {
+    
+            if( intArrayCount($edgeOrder[$i], $edgeOrder) >= 2 )
+            {
+    
+                 $returnString = "yes";
+                 break;    
+            }
+    }
+    return $returnString;
+}
+
+global proc delSelEmptyGeoNodes()
+{
+	string $mesh[] = `ls -sl -o`;
+	string $mainShape[] = `listHistory -leaf true $mesh[0]`;
+	string $allShapes[] = `listRelatives -s $mesh[0]`;
+	delete (stringArrayRemove(`listRelatives -shapes -ni`, `listRelatives -shapes`)); //suggested by mcw0 from maya programming forum
+    catchQuiet (delete (`listConnections -type "polyBase" $mainShape[0]`));
+	//string $extrudes[] = `listConnections -type "polyExtrudeFace" $mainShape[0]`;   //// brute force way of removing known history nodes
+	//string $cirulars[] = `listConnections -type "polyCircularize" $mainShape[0]`;
+	//string $chamfers[] = `listConnections -type "polyChamfer" $mainShape[0]`;
+	  //catchQuiet(`delete $extrudes`);
+	  //catchQuiet(`delete $cirulars`); 
+	  //catchQuiet(`delete $chamfers`);
+}
+
+global proc holePuncherVtx()
+{
+    string $obj[] = `getTransformsFromComponent`;
+    string $verts[] = `ls -sl -fl`;
+    int $vtxAmt;
+    int $edgeAmt[];
+    int $newAmt[];
+    string $selEdge[];
+    if (`testShareEdge` == "no"){
+        //ConvertSelectionToEdges;
+        //$selEdge = `ls -sl`;
+        //polySoftEdge -a 0 -ch 1
+        //print "no";
+        $edgeAmt = `polyEvaluate -e $obj[0]`;
+        //select -r $verts;
+        polyChamferVtx 1 0.25 1;
+        $newAmt = `polyEvaluate -e $obj[0]`;
+        int $newEdges = $newAmt[0] - 1;
+        select -r ($obj[0] + ".e" + "[" + ($edgeAmt[0] - 1) + ":" + $newEdges + "]");
+        FillHole;
+        ConvertSelectionToContainedFaces;
+        string $faceSel[] = `ls -sl`;
+        string $cirCMD[] = `polyCircularizeFace -constructionHistory 1 -alignment 1 -radialOffset 0 -normalOffset 0 -normalOrientation 0 
+        -smoothingAngle 30 -evenlyDistribute 1 -divisions 1 -supportingEdges 0 -twist 0 -relaxInterior 1`;
+        string $delFace[] = `polyDelFacet $faceSel`;
+        string $newCirCMD = `rename $cirCMD[0] "HolePunch"`;
+		addAttr -ln "CloseHole"  -at bool  $newCirCMD;
+        setAttr -e -keyable true ($newCirCMD + ".CloseHole");
+        connectAttr -f ($newCirCMD + ".CloseHole") ($delFace[0] + ".nodeState");
+        //print $cirCMD[0];
+        select -addFirst $newCirCMD;
+        ShowManipulatorTool;
+        
+     }
+     else{
+        //ConvertSelectionToEdges;
+        //$selEdge = `ls -sl`;
+        //polySoftEdge -a 0 -ch 1;
+        $edgeAmt = `polyEvaluate -e $obj[0]`;
+        select -r $verts;
+        polyChamferVtx 1 0.25 1;
+        $newAmt = `polyEvaluate -e $obj[0]`;
+        int $newEdges = $newAmt[0] - 1;
+        select -r ($obj[0] + ".e" + "[" + ($edgeAmt[0] - 1) + ":" + $newEdges + "]");
+        $selEdge = `ls -sl`;
+        FillHole;
+        ConvertSelectionToContainedFaces;
+        string $faceSel[] = `ls -sl -fl`;
+        string $cirCMD[];
+        int $counter = 0;
+        select -clear;
+        for ($face in $faceSel){
+            select -r $face;
+            string $cmdHolder[] = `polyCircularizeFace -constructionHistory 1 -alignment 1 -radialOffset 0 -normalOffset 0 -normalOrientation 0 -smoothingAngle 30 -evenlyDistribute 1 -divisions 1 -supportingEdges 0 -twist 0 -relaxInterior 1`;
+            $cirCMD[$counter] = $cmdHolder[0];
+            $counter++;
+        }
+        //print $cirCMD;
+        string $delFace[] = `polyDelFacet $faceSel`;
+        for ($j=0; $j <= ((size($cirCMD)) - 1); $j++){
+            catchQuiet (`connectAttr -f ($cirCMD[0] + ".radialOffset") ($cirCMD[$j+1] + ".radialOffset")`); //maya is being idiotic and throw an error even though this works.
+            catchQuiet (`connectAttr -f ($cirCMD[0] + ".alignment") ($cirCMD[$j+1] + ".alignment")`); 
+            catchQuiet (`connectAttr -f ($cirCMD[0] + ".normalOrientation") ($cirCMD[$j+1] + ".normalOrientation")`);
+            catchQuiet (`connectAttr -f ($cirCMD[0] + ".twist") ($cirCMD[$j+1] + ".twist")`);
+            catchQuiet (`connectAttr -f ($cirCMD[0] + ".evenlyDistribute") ($cirCMD[$j+1] + ".evenlyDistribute")`);
+            setAttr -l true { ("polyCircularize" + ($j+1) + ".se") };
+            catchQuiet (`connectAttr -f ($cirCMD[0] + ".divisions") ($cirCMD[$j+1] + ".divisions")`);
+            //setAttr -l true { ("polyCircularize" + ($j+1) + ".d") };
+        }
+		string $newCirCMD = `rename $cirCMD[0] "HolePunch"`; //get the new cmd name 
+		addAttr -ln "CloseHole"  -at bool  $newCirCMD;
+        setAttr -e -keyable true ($newCirCMD + ".CloseHole");
+        connectAttr -f ($newCirCMD + ".CloseHole") ($delFace[0] + ".nodeState");
+		select -addFirst $newCirCMD;
+        ShowManipulatorTool;
+     }   
+} 
+
+global proc holePuncherFace(){
+    string $faces[] = `ls -sl -fl`;
+    polyExtrudeFacet -constructionHistory 1 -keepFacesTogether 0 -divisions 1 -twist 0 -taper 1 -off 0.01 -thickness 0 -smoothingAngle 30;
+    string $cirCMD[] = `polyCircularizeFace -constructionHistory 1 -alignment 1 -radialOffset 0 -normalOffset 0 -normalOrientation 0 -smoothingAngle 30 -evenlyDistribute 1 -divisions 1 -supportingEdges 0 -twist 0 -relaxInterior 1`;
+    string $delFace[] = `polyDelFacet $faces`;
+	string $newCirCMD = `rename $cirCMD[0] "HolePunch"`;
+	addAttr -ln "CloseHole"  -at bool  $newCirCMD;
+    setAttr -e -keyable true ($newCirCMD + ".CloseHole");
+    connectAttr -f ($newCirCMD + ".CloseHole") ($delFace[0] + ".nodeState");
+	select -addFirst $newCirCMD;
+    ShowManipulatorTool;
+    checkSpeedButton "slow" 0; // adjust the dragger ammount 
+}
+
+global proc holePuncherFaceGrp(){
+    string $faces[] = `ls -sl -fl`;
+    polyExtrudeFacet -constructionHistory 1 -keepFacesTogether 1 -divisions 1 -twist 0 -taper 1 -off 0.22 -thickness 0 -smoothingAngle 30;
+    string $cirCMD[] = `polyCircularizeFace -constructionHistory 1 -alignment 1 -radialOffset 0 -normalOffset 0 -normalOrientation 0 -smoothingAngle 30 -evenlyDistribute 1 -divisions 0 -supportingEdges 0 -twist 0 -relaxInterior 1`;
+    string $delFace[] = `polyDelFacet $faces`;
+	string $newCirCMD = `rename $cirCMD[0] "HolePunch"`;
+	addAttr -ln "CloseHole"  -at bool  $newCirCMD;
+    setAttr -e -keyable true ($newCirCMD + ".CloseHole");
+    connectAttr -f ($newCirCMD + ".CloseHole") ($delFace[0] + ".nodeState");
+	select -addFirst $newCirCMD;
+    ShowManipulatorTool;
+    checkSpeedButton "slow" 0; // adjust the dragger ammount 
+}
+
+global proc performHolePunch(){    
+    string $selType = `getComponentMask`;
+	if ($selType == "edge"){
+		warning "Please Select Faces or Vertices!";
+	}
+    else {
+		string $selComp[] = `ls -sl`;
+		toggleSelMode;
+		toggleSelMode;
+		selectMode -object;
+		DeleteHistory;
+		string $selObj[] = `ls -sl -o`;
+		string $mainShape[] = `listHistory -leaf true $selObj[0]`;
+		string $connectionList[] = `listConnections $mainShape[0]`;
+		if (`size($connectionList)` > 5)
+		{
+			delSelEmptyGeoNodes;
+		}   
+		//delete -constructionHistory $mesh[0];
+		selectMode -component;
+		select -r $selComp;
+		int $mods = `getModifiers`;
+		if ($selType == "vertex"){
+			holePuncherVtx;    
+		}
+		else if ($selType == "facet"){
+		   //ConvertSelectionToContainedEdges;
+		   if ($mods / 4 % 2){
+			   holePuncherFaceGrp;
+		   }
+		   else{
+			   holePuncherFace;
+		   }
+		}
+	}	
+}

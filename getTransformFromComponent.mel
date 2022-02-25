@@ -1,0 +1,19 @@
+global proc string[] getTransform(string $inShape[]) {
+     string $transform[];
+     for ($node in $inShape) {
+       if ( "transform" != `nodeType $node` ) {
+         // If given node is already a transform, just pass on through
+         string $parents[] = `listRelatives -fullPath -parent $node`;
+         appendStringArray($transform, $parents, size($parents));
+         }
+        }
+return $transform;
+}
+
+global proc string[] getTransformsFromComponent(){
+     string $outShapes[] = `ls -selection -objectsOnly`;
+      //print $outShapes;
+     string $transformsReturned[] = `getTransform($outShapes)`;
+     return $transformsReturned;
+
+}
