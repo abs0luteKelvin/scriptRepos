@@ -1,0 +1,80 @@
+//--------------------------------------------------------------------------
+// ScriptName : AriQuadrangulateRingOptions
+// Contents   : AriQuadrangulateRingのオプション
+// Since      : 2021/09/12 オプション新規作成
+// LastUpdate : 
+//--------------------------------------------------------------------------
+
+global proc AriQuadrangulateRingOptions_Save(){
+	global string $AriQuadrangulateRingOp_UVBorderCB;
+	int $UVborder  = true;
+	$UVborder  = `checkBox -q -v $AriQuadrangulateRingOp_UVBorderCB`;
+	optionVar -intValue   "AriQuadrangulateRing_UVBorder"  $UVborder;
+}
+global proc AriQuadrangulateRingOptions_GO(){
+	AriQuadrangulateRingOptions_Save();
+	AriQuadrangulateRing;
+}
+global proc AriQuadrangulateRingOptions(){
+	global string $AriQuadrangulateRingOp_UVBorderCB;
+	string $JPTrue = false;
+	if(`about -uil`=="ja_JP")$JPTrue = true;
+	else $JPTrue = false;
+	string $label_ExclusionUVborder = "Exclusion UV border";
+	if($JPTrue){
+		$label_ExclusionUVborder = "UV境界を除外";
+	}
+	int $UVborder  = true;
+	if(`optionVar -exists "AriQuadrangulateRing_UVBorder"`)		$UVborder  = `optionVar -q "AriQuadrangulateRing_UVBorder"`;
+	if((`window -ex  AriQuadrangulateRingOptions`)==true)deleteUI AriQuadrangulateRingOptions;
+	window -title "AriQuadrangulateRingOptions" -tlb true -w 200 -h 50 AriQuadrangulateRingOptions;
+	string $form = `formLayout`;
+	string $column = `columnLayout -adj true`;
+	rowLayout -nc 3 -adj 2;
+	columnLayout;
+	$AriQuadrangulateRingOp_UVBorderCB  = `checkBox -l $label_ExclusionUVborder -v $UVborder`;
+	setParent..;
+	text -l "";
+	rowLayout -nc 5;
+	separator -hr false -h 40;
+	iconTextButton -i "aselect.png"    -c "setToolTo selectSuperContext";
+	iconTextButton -i "artPaintSelect.png" -c "setToolTo artSelectContext";
+	columnLayout;
+	button -h 20 -l "Edge" -c "SelectEdgeMask";
+	button -h 20 -l "Face" -c "SelectFacetMask";
+	setParent..;
+	setParent..;
+	setParent..;
+	separator -h 8 -st "in";
+	setParent..;
+	string $buttonform = `formLayout`;
+	string $buttonSave       = `button       -l "Save"       -c "AriQuadrangulateRingOptions_Save();"`;
+	string $buttonSaveClose  = `button       -l "Save Close" -c "AriQuadrangulateRingOptions_Save(); deleteUI AriQuadrangulateRingOptions;"`;
+	string $buttonApply      = `button -h 38 -l "Apply"      -c "AriQuadrangulateRingOptions_GO();" -bgc 0.5 0.5 1`;
+	setParent..;
+	formLayout -e 
+	-af $buttonApply "bottom" 0  
+	-ap $buttonApply "left"   0 50
+	-af $buttonApply "right"  0
+	-af $buttonApply "top"    0 
+	-af $buttonSave	"top"    0
+	-ap $buttonSave	"bottom" 0 50
+	-af $buttonSave	"left"   0 
+	-ac $buttonSave	"right"  0 $buttonApply
+	-ac $buttonSaveClose	"top"    0 $buttonSave
+	-af $buttonSaveClose	"bottom" 0
+	-af $buttonSaveClose	"left"   0
+	-ac $buttonSaveClose	"right"  0 $buttonApply
+	$buttonform;
+	setParent..;
+	formLayout -e 
+	-af $column "top"    0
+	-af $column "left"   0
+	-af $column "right"  0
+	-ac $buttonform "top"    0 $column
+	-af $buttonform "bottom" 0
+	-af $buttonform "left"   0
+	-af $buttonform "right"  0
+	$form;
+	showWindow;
+}
