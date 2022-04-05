@@ -1,0 +1,334 @@
+global proc quadEndConnectFace()
+{
+	string $connectEdges[];
+	if(size (`filterExpand -sm 34`) == 0){
+	    warning "Please Select some faces and Run Again";
+	}
+	else{    
+    	string $currentTool = `currentCtx`;
+    	string $face[] = `ls -sl -fl -l`;
+    	string $faceVerts[] = `polyListComponentConversion -ff -tv $face`;
+    	string $toks[];
+    	int $counter = 0;
+    	//string $faceVertsTemp[];
+    	string $faceVertsFlat[];
+    	for ($f in $face){
+    		string $faceToVerts[] = `polyInfo -faceToVertex $f`;
+    		tokenize $faceToVerts[0] " :\n\r" $toks;
+    		//print (`size $toks`);
+    		for ( $t = 2; $t < `size $toks`; $t++ )
+    		{
+    			  $faceVertsFlat[`size $faceVertsFlat`] = $toks[$t];
+    		}
+    		
+    		$counter++;
+    	}
+    	//print $faceVertsFlat;
+    	//string $faceVertsFlat[] = `ls -fl -l $faceVerts`;
+    	if (size($faceVertsFlat) != (size($face)* 6)){
+    		warning "Please Select Faces with 6 verts";
+    	}
+    	else{
+    		
+    		string $mesh[];
+    		tokenize $face[0] "." $mesh;
+    		string $undoChunk = `undoInfo -openChunk -chunkName "QuadEndConnect"`;
+    		for ($f in $face){
+    			select -r $f;
+    			int $oldEdgeAmt[] = `polyEvaluate -e`;
+    			string $boundVerts[] = `polyListComponentConversion -ff -tv $f`;
+    			string $boundVertsFlat[] = `ls -fl -l $boundVerts`;
+    			string $vertexOrder[];
+    			string $vtxFace[] = `polyListComponentConversion -fromFace -toVertexFace $f`;
+    			$vtxFace = `filterExpand -sm 70 -expand true $vtxFace`;
+    			for ( $vf in $vtxFace )
+    			{
+    			  // Get vertex for this vtxFace
+    			  string $vertex[] = `polyListComponentConversion -fromVertexFace -toVertex $vf`;
+    			  $vertex = `ls -l $vertex`;
+    			
+    			  // And append to our result
+    			  $vertexOrder[ size($vertexOrder) ] = $vertex[0];
+    			}
+    			
+    			//print $vertexOrder;
+    			select -r $boundVertsFlat;
+    			polySelectConstraint -m 2 -t 0x0001 -or on -orb 5 8;
+    			string $markVerts[] = `ls -sl -fl -l`; // mark the vert that has pole topo
+    			//print (size($markVerts));
+    			resetPolySelectConstraint;
+    			select -r $f;
+    			string $pokeFace[] = `polyPoke $f`;
+    			select `ls -sl "*.f[*]"`;
+    			ConvertSelectionToVertices;
+    			polySelectConstraint -m 2 -t 0x0001 -w 2 -or on -orb 4 4;
+    			string $connectVerts[] = `ls -sl -fl -l`;
+    			resetPolySelectConstraint;
+    			delete $pokeFace;
+    			if (`size($markVerts)` >= 1){
+    				select -d $markVerts;
+    			}
+    			select `ls -sl`;PolySelectTraverse 5; select `ls -sl`;
+    			string $frontSideVerts[] = `ls -sl -fl -l`;
+    			print $frontSideVerts;
+    			string $backSideVerts[] = stringArrayRemove($frontSideVerts,$vertexOrder);
+    			//print $backSideVerts;
+    			print ("backVerts: " +  $backSideVerts[0] + " " + $backSideVerts[1] + "\n");
+    			int $bkVtIndex1 = stringArrayFind( $backSideVerts[0], 0, $vertexOrder );
+    			int $bkVtIndex2 = stringArrayFind( $backSideVerts[1], 0, $vertexOrder );
+    			//print ("idx1 :" + $bkVtIndex1 + "\n"); 
+    			//print ("idx2 :" + $bkVtIndex2 + "\n"); 
+    			string $cntVert1;
+    			string $cntVert2;
+    			
+    			if ($bkVtIndex1 == 0 && $bkVtIndex2 == 1){
+    				$cntVert1 = $vertexOrder[4];
+    				$cntVert2 = $vertexOrder[3];
+    			}
+    			else if ($bkVtIndex1 == 4 && $bkVtIndex2 == 5){
+    				$cntVert1 = $vertexOrder[2];
+    				$cntVert2 = $vertexOrder[1];		
+    			}
+    			else if ($bkVtIndex1 == 1 && $bkVtIndex2 == 2){
+    				$cntVert1 = $vertexOrder[5];
+    				$cntVert2 = $vertexOrder[4];
+    			}
+    			else if ($bkVtIndex1 == 0 && $bkVtIndex2 == 5){
+    				$cntVert1 = $vertexOrder[2];
+    				$cntVert2 = $vertexOrder[3];		
+    			}
+    			else if ($bkVtIndex1 == 2 && $bkVtIndex2 == 3){
+    				$cntVert1 = $vertexOrder[0];
+    				$cntVert2 = $vertexOrder[5];					
+    			}
+    			else if ($bkVtIndex1 == 3 && $bkVtIndex2 == 4){
+    				$cntVert1 = $vertexOrder[1];
+    				$cntVert2 = $vertexOrder[0];    			    
+    			}    			
+    			//|pPlane1.vtx[150]
+    			//|pPlane1.vtx[56]
+    			//|pPlane1.vtx[57]
+    			//|pPlane1.vtx[69]
+    			//|pPlane1.vtx[68]
+    			//|pPlane1.vtx[157]
+    			//print ($cntVert1 + "\n");
+    			//print ($cntVert2 + "\n");
+    			//print ("polyConnectComponents " + $backSideVerts[0] + " " + $cntVert1);
+    			polyConnectComponents $backSideVerts[0] $cntVert1;
+    			polyConnectComponents $backSideVerts[1] $cntVert2;
+    			int $newEdgesAmt[] = `polyEvaluate -e`;
+    			int $diffEdgeAmt = $newEdgesAmt[0] - $oldEdgeAmt[0];
+    			string $newEdges[];
+    			for($i = 1 ; $i <= $diffEdgeAmt; $i++){
+    				$newEdges[($i-1)] = ($mesh[0] + ".e[" + ($newEdgesAmt[0] - $i) + "]");
+    			}
+    			string $newVerts[];
+    			int $vertsBefore[] = `polyEvaluate -v`;
+    			polyConnectComponents $newEdges;
+    			int $vertsAfter[] = `polyEvaluate -v`;
+    			int $vertDiffAmt = $vertsAfter[0] - $vertsBefore[0];
+    			for($j = 1 ; $j <= $vertDiffAmt; $j++){
+    				$newVerts[($j-1)] = ($mesh[0] + ".vtx[" + ($vertsAfter[0] - $j) + "]");
+    			}
+    			//print $newVerts;
+    			select -r $newVerts;
+    			SculptGeometryTool;
+    			artPuttyCtx -e -mtm "smooth" `currentCtx`;
+    			artPuttyCtx -e -clear `currentCtx`;
+    			setToolTo $currentTool;
+    		}
+    			delete -ch $mesh[0];
+    			undoInfo -closeChunk;
+    	}
+    }
+}    
+//Polygon Vertices 	31
+//Polygon Edges 	32
+//Polygon Face 	34 
+
+//polySelectConstraint 
+/***
+0x0000(none)
+0x0001(vertex)
+0x8000(edge)
+0x0008(face)
+0x0010(texture coordinates) 
+***/
+
+global proc quadEndConnectVertex()
+{
+    string $connectEdges[];
+    string $currentTool = `currentCtx`;
+    string $vtxSel[] = ls("-l","-fl",filterExpand("-sm", 31, "-ex", on));
+    //print $vtxSel;
+    //print "\n";
+    string $mesh = plugNode($vtxSel[0]);
+    string $undoChunk = `undoInfo -openChunk -chunkName "QuadEndConnect"`;    
+    if (`size $vtxSel` == 0){
+        warning "Please select some vertices and try again";
+    }
+    else{
+        ConvertSelectionToFaces;
+        //string $v2Face[] = ls("-l","-fl",polyListComponentConversion("-fv","tf")); 
+        polySelectConstraint -m 2 -t 0x0008 -sz 3;
+        resetPolySelectConstraint;
+        string $v2Face[] = `ls -sl -l -fl`;
+        //print $v2Face;
+        select -r $v2Face;
+    	//string $face[] = `ls -sl -fl -l`;
+    	//string $faceVerts[] = `polyListComponentConversion -ff -tv $face`;
+    	string $toks[];
+    	int $counter = 0;
+    	//string $faceVertsTemp[];
+    	string $faceVertsFlat[];
+    	for ($f in $v2Face){
+    		string $faceToVerts[] = `polyInfo -faceToVertex $f`;
+    		tokenize $faceToVerts[0] " :\n\r" $toks;
+    		//print (`size $toks`);
+    		for ( $t = 2; $t < `size $toks`; $t++ )
+    		{
+    			  $faceVertsFlat[`size $faceVertsFlat`] = $toks[$t];
+    		} 		
+    		$counter++;
+    	}
+    		for ($f in $v2Face){
+    			select -r $f;
+    			int $oldEdgeAmt[] = `polyEvaluate -e $mesh`;
+    			string $boundVerts[] = `polyListComponentConversion -ff -tv $f`;
+    			string $boundVertsFlat[] = `ls -fl -l $boundVerts`;
+    			print ("boundVerts: " + $boundVertsFlat[0] + " " + $boundVertsFlat[1] + " " + $boundVertsFlat[2] + " " + $boundVertsFlat[3] + " " + $boundVertsFlat[4] + " " + $boundVertsFlat[5] + " " + "\n");
+    			string $connectVtx[] = stringArrayRemove((stringArrayRemove($vtxSel,$boundVertsFlat)),$boundVertsFlat);
+    			select -r $connectVtx;
+    			print "connectVerts: ";
+    			print $connectVtx;
+    			print "\n"; 
+    			GrowLoopPolygonSelectionRegion;
+    			string $frontSideVerts[] = `ls -sl -fl -l`;
+    			print ("frontSideVerts: " +  $frontSideVerts[0] + " " + $frontSideVerts[1] + " " + $frontSideVerts[2] + " " + $frontSideVerts[3] + "\n");
+    			string $vertexOrder[];
+    			string $vtxFace[] = `polyListComponentConversion -fromFace -toVertexFace $f`;
+    			$vtxFace = `filterExpand -sm 70 -expand true $vtxFace`;
+    			for ( $vf in $vtxFace )
+    			{
+    			  // Get vertex for this vtxFace
+    			  string $vertex[] = `polyListComponentConversion -fromVertexFace -toVertex $vf`;
+    			  $vertex = `ls -l $vertex`;
+    			
+    			  // And append to our result
+    			  $vertexOrder[ size($vertexOrder) ] = $vertex[0];
+    			}
+    			print "vertexOrder: ";
+    			print $vertexOrder;
+    			print "\n";
+    	        string $backSideVerts[] = stringArrayRemove($frontSideVerts,$vertexOrder);
+    			print ("backVerts: " +  $backSideVerts[0] + " " + $backSideVerts[1] + "\n");    	        
+    			int $bkVtIndex1 = stringArrayFind( $backSideVerts[0], 0, $vertexOrder );
+    			int $bkVtIndex2 = stringArrayFind( $backSideVerts[1], 0, $vertexOrder );
+    			print ("idx1 :" + $bkVtIndex1 + "\n"); 
+    			print ("idx2 :" + $bkVtIndex2 + "\n"); 
+    			string $cntVert1;
+    			string $cntVert2;
+    			
+    			if ($bkVtIndex1 == 0 && $bkVtIndex2 == 1){
+    				$cntVert1 = $vertexOrder[4];
+    				$cntVert2 = $vertexOrder[3];
+    			}
+    			else if ($bkVtIndex1 == 4 && $bkVtIndex2 == 5){
+    				$cntVert1 = $vertexOrder[2];
+    				$cntVert2 = $vertexOrder[1];		
+    			}
+    			else if ($bkVtIndex1 == 1 && $bkVtIndex2 == 2){
+    				$cntVert1 = $vertexOrder[5];
+    				$cntVert2 = $vertexOrder[4];
+    			}
+    			else if ($bkVtIndex1 == 0 && $bkVtIndex2 == 5){
+    				$cntVert1 = $vertexOrder[2];
+    				$cntVert2 = $vertexOrder[3];		
+    			}
+    			else if ($bkVtIndex1 == 2 && $bkVtIndex2 == 3){
+    				$cntVert1 = $vertexOrder[0];
+    				$cntVert2 = $vertexOrder[5];					
+    			}
+    			else if ($bkVtIndex1 == 3 && $bkVtIndex2 == 4){
+    				$cntVert1 = $vertexOrder[1];
+    				$cntVert2 = $vertexOrder[0];    			    
+    			}
+    			//|pPlane1.vtx[150]
+    			//|pPlane1.vtx[56]
+    			//|pPlane1.vtx[57]
+    			//|pPlane1.vtx[69]
+    			//|pPlane1.vtx[68]
+    			//|pPlane1.vtx[157]
+    			//print ($cntVert1 + "\n");
+    			//print ($cntVert2 + "\n");
+    			//print ("polyConnectComponents " + $backSideVerts[0] + " " + $cntVert1);
+    			polyConnectComponents $backSideVerts[0] $cntVert1;
+    			polyConnectComponents $backSideVerts[1] $cntVert2;
+    			int $newEdgesAmt[] = `polyEvaluate -e $mesh`;
+    			int $diffEdgeAmt = $newEdgesAmt[0] - $oldEdgeAmt[0];
+    			string $newEdges[];
+    			for($i = 1 ; $i <= $diffEdgeAmt; $i++){
+    				$newEdges[($i-1)] = ($mesh + ".e[" + ($newEdgesAmt[0] - $i) + "]");
+    			}
+    			string $newVerts[];
+    			int $vertsBefore[] = `polyEvaluate -v $mesh`;
+    			polyConnectComponents $newEdges;
+    			int $vertsAfter[] = `polyEvaluate -v $mesh`;
+    			int $vertDiffAmt = $vertsAfter[0] - $vertsBefore[0];
+    			for($j = 1 ; $j <= $vertDiffAmt; $j++){
+    				$newVerts[($j-1)] = ($mesh + ".vtx[" + ($vertsAfter[0] - $j) + "]");
+    			}
+    			//print $newVerts;
+    			select -r $newVerts;
+    			ConvertSelectionToContainedEdges;
+    			string $tmpEdges[] = `ls -sl -l`;
+    			$connectEdges[size($connectEdges)] = $tmpEdges[0];
+    			/**
+    			SculptGeometryTool;
+    			artPuttyCtx -e -mtm "smooth" `currentCtx`;
+    			artPuttyCtx -e -clear `currentCtx`;
+    			artPuttyCtx -e -clear `currentCtx`;
+    			artPuttyCtx -e -clear `currentCtx`;
+    			***/
+    			setToolTo $currentTool;
+    		}            
+	 	    print $connectEdges;
+	 	    string $moveEdge[] = `polyMoveEdge -localScaleX 0.5 $connectEdges`;
+	 	    $moveEdge[0] = `rename $moveEdge[0] "scaleQuadEnd"`;
+	 	    select -add $moveEdge;
+    }
+	undoInfo -closeChunk;
+    string $getMoveEdge[] = `ls -sl "*scaleQuadEnd"`;
+    if (`dragAttrContext  -q -ex quadEndEdgeDragger`) deleteUI quadEndEdgeDragger;
+    dragAttrContext 
+        -connectTo ($getMoveEdge[0] + ".localScaleX")
+        quadEndEdgeDragger;
+    setToolTo quadEndEdgeDragger;
+	inViewMessage -amg "Middle mouse drag to adjust edge." -fof 100 -pos midCenter -tof 2 -fade;	    
+}
+
+global proc quadEndConnectEdge(){
+    string $edgeSel[] = `filterExpand -sm 32 -ex on`;
+    if (`size $edgeSel` == 0){
+        warning "Please select the inner edge and try again";
+    }
+    else{
+        //string $v2Face[] = ls("-l","-fl",polyListComponentConversion("-fv","tf")); 
+        ConvertSelectionToVertices;
+        quadEndConnectVertex;            
+    }
+}    
+
+global proc performQuadEndConnect(){
+	if (`getComponentMask` == "edge"){
+	quadEndConnectEdge();
+	}
+	else if (`getComponentMask` == "vertex"){
+	quadEndConnectVertex();
+	}
+	else if (`getComponentMask` == "facet"){
+	quadEndConnectFace();
+	}
+}    
+
+performQuadEndConnect();
