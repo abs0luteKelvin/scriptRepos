@@ -1,0 +1,310 @@
+global proc quadCornerConnectEdge(){
+	string $eList[] = `ls -sl -fl -l "*.e[*]"`;
+	if (`size $eList` < 2){	
+		warning "Please Select Edges only";
+	}
+	else{
+		//string $shape[] = `ls -sl -o -l`;
+		//string $mesh[] = `listRelatives -parent -path $shape[0]`;
+		string $mesh[];
+		tokenize $eList[0] "." $mesh;
+		string $undoChunk = `undoInfo -openChunk -chunkName "CornerConnect"`;
+		string $edgeRingSet = `sets -name "edgeRings" $eList`;
+		string $remainList[] = $eList;
+		string $splitCMD[];
+		int $counter = 0;
+		string $cornerVerts[];
+		string $allSplitloops[];
+		vector $pos;
+		string $splitSet;
+		//string $plySplitRing[] = `polySplitRing -ch on -splitType 1 -weight 0.5 -fixQuads 0 $remainList`;
+		while ( size($remainList) > 0){
+			string $splitHolder[] = `polySplitRing -ch on -splitType 1 -weight 0.5 -fixQuads 0 $remainList`;
+			$splitCMD[$counter] = $splitHolder[0];
+			string $splitLoop[] = `ls -sl -fl -l`;
+			if(`objExists splitLoopSet`){
+				sets -add splitLoopSet $splitLoop;
+			}
+			else{
+				sets -name "splitLoopSet" $splitLoop;
+			}		
+			$allSplitloops = stringArrayCatenate($allSplitloops, $splitLoop);
+			ConvertSelectionToFaces;
+			ConvertSelectionToEdges;
+			string $removeList[] = `ls -sl -fl -l`;
+			sets -rm $edgeRingSet $removeList;
+			//select -r $edgeRingSet ;
+			//string $setList[] = `ls -sl -fl -l`;
+			string $setList[] = `sets -q $edgeRingSet`;
+			string $setFlattenList[] = `ls -fl -l $setList`;
+			$remainList = $setFlattenList;
+			//print $setFlattenList;
+			//select -d $splitLoop;
+			//string $comList[] = `ls -sl -fl -l`;
+			//print $comList;
+			//$remainList = stringArrayRemove($comList,$setFlattenList);		
+			int $oldVertsNum[] = `polyEvaluate -vertex $mesh[0]`;
+			setAttr ($splitCMD[$counter] + ".fixQuads") 1;
+			int $newVertsNum[] = `polyEvaluate -vertex $mesh[0]`;
+			int $cornerVertNum = $newVertsNum[0] - $oldVertsNum[0];
+			
+			for($i = 1 ; $i <= $cornerVertNum; $i++){
+				$cornerVerts[($i-1)] = ($mesh[0] + ".vtx[" + ($newVertsNum[0] - $i) + "]");
+				}
+			for($c in $cornerVerts){
+				select -r $c;
+				ConvertSelectionToEdges;
+				ConvertSelectionToVertices;
+				MoveTool;
+				$pos = `manipMoveContext -q -p Move`;
+				select -r $c;
+				move -a -xyz ($pos.x) ($pos.y) ($pos.z);	
+			}
+			$counter++;
+			//print (size($remainList)); 			
+		}
+		//string $lastVert = ($mesh[0] + ".vtx[" + (int(intArrayToString((`polyEvaluate -vertex`),"")) - 1) + "]");
+		//select -r $lastVert;
+		dR_DoCmd("modeEdge");
+		selectMode -component;
+		//dR_DoCmd("modeEdge");
+		//print $remainList;
+		delete $edgeRingSet;
+		//select -r $remainList;
+		//select -r $allSplitloops;
+		select -r splitLoopSet;
+		SelectEdgeLoopSp;
+		delete splitLoopSet;
+	}
+	undoInfo -closeChunk;
+	
+}
+
+global proc quadCornerConnectVertex()
+{
+	string $currentTool = `currentCtx`;
+	int $edgeBefore[] = `polyEvaluate -e`;
+	string $verts[] = `ls -os -l -fl`;
+	string $token[];
+	tokenize $verts[0] ".[]" $token;
+	string $mesh = $token[0];
+	string $vertexOrder[];
+	string $vertexOrderPacked[];
+	string $storevf[];
+	undoInfo -openChunk -chunkName "CornerConnectVertex";
+	/**
+	for($v in $verts){
+		string $vfaceTemp[] = ls("-l","-fl",polyListComponentConversion("-fv","-tvf",$v));
+		$storevf = $vfaceTemp;
+		clear $vfaceTemp;
+	}
+	**/
+	for($v = 0; $v < `size($verts)`; $v += 2){
+		polyConnectComponents $verts[$v] $verts[($v + 1)];
+	}
+	//ConnectComponents; 
+	int $edgeAfter[] = `polyEvaluate -e`;
+	int $vtxBefore[] = `polyEvaluate -v`;
+	//get new edges
+	int $edgeNewNum =  $edgeAfter[0] - $edgeBefore[0];
+	string $newEdge[];
+	for($i = 1 ; $i <= $edgeNewNum; $i++){
+		$newEdge[($i-1)] = ($mesh + ".e[" + ($edgeAfter[0] - $i) + "]");
+	}
+	polySubdivideEdge -ws 0 -s 0 -dv 1 -ch 1 $newEdge;
+	int $vtxAfter[] = `polyEvaluate -v`;
+	int $vtxNewNum = $vtxAfter[0] - $vtxBefore[0];
+	string $newVtx[];
+	int $counter = 0;
+	for($k = 1 ; $k <= $vtxNewNum; $k++){
+		$newVtx[($k-1)] = ($mesh + ".vtx[" + ($vtxBefore[0] - 1 + $k) + "]");
+	}
+	print $newVtx; //order is reversed
+	string $vtxFace[];
+	string $storevfxFace[];
+	for($nv in $newVtx){
+		select -r $nv;
+		$vtxFace = `polyListComponentConversion -fv -tvf $nv`;
+		$vtxFace = `filterExpand -sm 70 -expand true $vtxFace`; // problem it reverses the vtxFace order sometimes	
+		$storevfxFace = stringArrayCatenate($storevfxFace, $vtxFace);
+	}
+	print $storevfxFace; //wrong. not sure why.
+	string $buffer[];
+	string $vfTofaceID[];	
+	for ($vf in $storevfxFace){
+		tokenize $vf "[:]" $buffer;
+		$vfTofaceID[`size($vfTofaceID)`] = $buffer[2];
+		clear $buffer;
+	}
+	//print ("vtfID: " + "\n");
+	//print $vfTofaceID;
+	//print "\n";
+	//string $uniqueFaceIDs[] = `stringArrayRemoveDuplicates($vfTofaceID)`; 
+	//print "uniqueFaceIDs: ";
+	//print $uniqueFaceIDs;
+	//string $cornerFaceID[] = stringArrayRemoveExact($uniqueFaceIDs,$vfTofaceID); //syphons the corner faces by getting duplicate IDs
+	string $cornerFace[];
+	int $cornerFaceID[];
+	string $connectVtx[];
+	string $toface[];
+	for ($fID in $vfTofaceID){
+		// check if face has 6 verts
+		$toface[0] = ($mesh + ".f[" + $fID + "]");
+		string $f2V[] =  ls("-l","-fl",polyListComponentConversion("-ff","-tv",$toface));
+		if (`size($f2V)` == 6){
+			$cornerFace[`size $cornerFace`]= ($mesh + ".f[" + $fID + "]"); // assembling the face string
+		}
+	}
+
+	print $cornerFace; // good to go
+	for($cf in $cornerFace){
+		string $vfCon[] = `polyListComponentConversion -fromFace -toVertexFace $cf`;
+		$vfCon = `filterExpand -sm 70 -expand true $vfCon`;
+		//print $vfCon;//checks out as well
+		//print ("vertexFace Num:" + (`size $vfCon`) + "\n");
+		for ( $vf in $vfCon )
+		{
+		  	// Get vertex for this vtxFace
+		  	string $vertex[] = `polyListComponentConversion -fromVertexFace -toVertex $vf`;
+		  	$vertex = `ls -l $vertex`;
+			//print $vertex[0];
+			//print "\n"; //checks out
+		  	// And append to our result
+			$vertexOrder[`size($vertexOrder)`] = $vertex[0];
+		}
+		
+	  	int $connectVtxID1 = stringArrayFind($newVtx[$counter], 0 , $vertexOrder);
+	  	print ("connectID: " + $connectVtxID1 + "\n");
+		if ($connectVtxID1 == 3){
+			$connectVtx[`size($connectVtx)`] = $vertexOrder[0];	
+		}
+		else if($connectVtxID1 == 1){
+			$connectVtx[`size($connectVtx)`] = $vertexOrder[4];	
+		}
+		else if($connectVtxID1 == 5){
+			$connectVtx[`size($connectVtx)`] = $vertexOrder[2];		
+		}
+		//$vertexOrderPacked[size($vertexOrderPacked)] = stringArrayToString($vertexOrder," ");
+		$counter++;
+		clear $vertexOrder;
+	}
+	//print $connectVtx;
+	//select -r $newVtx;
+	//print $vertexOrder;
+	polyConnectComponents -ch on -ief on -aef 3.0 $newVtx $connectVtx;
+	select -r $newVtx;
+	SculptGeometryTool;
+	artPuttyCtx -e -mtm "smooth" -smoothiters 8 -maxdisp 200 `currentCtx`;
+	artPuttyCtx -e -clear `currentCtx`;
+	setToolTo $currentTool;
+	undoInfo -closeChunk;
+}
+global proc quadCornerConnectFace()
+{
+	string $face[] = `ls -sl -fl -l "*.f[*]"`;
+	string $vertexOrder[];
+	undoInfo -openChunk -chunkName "CornerConnectFace";
+	for($f in $face){
+		string $vtxFace[] = `polyListComponentConversion -fromFace -toVertexFace $f`;
+		$vtxFace = `filterExpand -sm 70 -expand true $vtxFace`;
+		for ( $vf in $vtxFace )
+		{
+		  // Get vertex for this vtxFace
+		  string $vertex[] = `polyListComponentConversion -fromVertexFace -toVertex $vf`;
+		  $vertex = `ls -l $vertex`;
+		
+		  // And append to our result
+		  $vertexOrder[ size($vertexOrder) ] = $vertex[0];
+		}
+		print $vertexOrder;
+		//print "\n";
+		//SelectVertexMask;	
+		select -r $vertexOrder;	
+		string $tVerts[] = eval ("ls -l -fl `polySelectConstraint -m 2 -type 0x0001 -or on -orb 3 3 -w 2 -returnSelection true`");
+		//print "tVert: ";
+		//print $tVerts;
+		resetPolySelectConstraint;
+		int $TVtIndex1 = stringArrayFind( $tVerts[0], 0, $vertexOrder );
+		//print ("index: "+ $TVtIndex1 + "\n");
+		int $TVtIndex2 = stringArrayFind( $tVerts[1], 0, $vertexOrder );
+		select -r $f;
+		polyPoke -ws 1 -tx 0 -ty 0 -tz 0 -ch 1 $f;
+		string $pokedFaces[] = `ls -sl -fl -l`;
+		//print "pokeFaces: ";
+		//print $pokedFaces;
+		//print "\n";
+		ConvertSelectionToVertices;
+		ShrinkPolygonSelectionRegion;
+		string $pokeVert[]= `ls -sl -l -fl "*.vtx[*]"`;
+		//string $pokeVert[] = `polyListComponentConversion -ff -tv -in $pokedFaces`;
+		//polyAverageVertex -i 1 -ch 1 $pokeVert[0];
+		//print ("pokeVert: " + $pokeVert[0] + "\n");
+		string $removeEdges[];
+		string $removeEdgeVtx[];
+		if( $TVtIndex1 == 0){
+			$removeEdgeVtx[0] = $vertexOrder[1];
+			$removeEdgeVtx[1] = $vertexOrder[3];
+			$removeEdgeVtx[2] = $vertexOrder[5];	
+		}
+		else if( $TVtIndex1 == 1){
+			$removeEdgeVtx[0] = $vertexOrder[0];
+			$removeEdgeVtx[1] = $vertexOrder[2];
+			$removeEdgeVtx[2] = $vertexOrder[4];	
+		}
+		else if( $TVtIndex1 == 2){
+			$removeEdgeVtx[0] = $vertexOrder[1];
+			$removeEdgeVtx[1] = $vertexOrder[3];
+			$removeEdgeVtx[2] = $vertexOrder[5];	
+		}	
+		else if( $TVtIndex1 == 3){
+			$removeEdgeVtx[0] = $vertexOrder[0];
+			$removeEdgeVtx[1] = $vertexOrder[2];
+			$removeEdgeVtx[2] = $vertexOrder[4];	
+		}
+		else if( $TVtIndex1 == 4){
+			$removeEdgeVtx[0] = $vertexOrder[1];
+			$removeEdgeVtx[1] = $vertexOrder[3];
+			$removeEdgeVtx[2] = $vertexOrder[5];	
+		}
+		else if( $TVtIndex1 == 5){
+			$removeEdgeVtx[0] = $vertexOrder[0];
+			$removeEdgeVtx[1] = $vertexOrder[2];
+			$removeEdgeVtx[2] = $vertexOrder[4];
+			//$removeEdgeVtx[3] = $pokeVert[0];
+		}
+		//print "removeEdgeVtx: " ;
+		//print $removeEdgeVtx;
+		//SelectVertexMask;
+		string $tmpVrtConnected[];
+		for($rv in $removeEdgeVtx){
+			$tmpVrtConnected[0] = $rv;
+			$tmpVrtConnected[1] = $pokeVert[0];
+		    select -r $tmpVrtConnected;
+			ConvertSelectionToContainedEdges;
+			//SelectEdgeMask;
+			string $tmpEdge[] = `ls -sl -l`;
+			$removeEdges[`size $removeEdges`] = $tmpEdge[0];
+		}
+		print "\n";
+		print $removeEdges;
+		polyDelEdge -cv false -ch 1 $removeEdges;
+		clear $pokeVert;
+		clear $removeEdges;
+		clear $vertexOrder;
+		clear $tmpVrtConnected;
+	}
+	undoInfo -closeChunk;
+}
+
+
+global proc performQuadCornerConnect(){
+	if (`getComponentMask` == "edge"){
+	quadCornerConnectEdge();
+	}
+	else if (`getComponentMask` == "vertex"){
+	quadCornerConnectVertex();
+	}
+	else if (`getComponentMask` == "facet"){
+	quadCornerConnectFace();
+	}
+}
