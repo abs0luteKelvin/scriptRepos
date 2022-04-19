@@ -1,0 +1,38 @@
+{
+  string $selObj[] = `ls -sl -l`;
+  float $tmpRotPiv[] = `manipPivot -query -o`;
+  float $projCenter[] = `xform -query -rotatePivot`;
+
+  for ( $g in $selObj ) {  
+    if ((`objectType -isType transform $g`) && (size(`listRelatives -allParents $g`) > 0)){
+        float $wsRot[] = `xform -query -worldSpace -rotation $g`;
+        group -em -name tmpNull1;
+        rotate -r -os -fo $wsRot[0] $wsRot[1] $wsRot[2] tmpNull1;
+        group -em -name tmpNull2;
+        rotate -r -os -fo $tmpRotPiv[0] $tmpRotPiv[1] $tmpRotPiv[2] tmpNull2;
+        parent tmpNull2 tmpNull1;
+        float $finalRot[] = `xform -query -objectSpace -rotation tmpNull2`;
+        delete tmpNull1 tmpNull2;
+        polyAutoProjection -lm 0 -pb 0 -ibd 1 -cm 0 -l 2 -sc 1 -o 1 -p 6 -ps 0.2 -ws 0 
+        -rx $finalRot[0] -ry $finalRot[1] -rz $finalRot[2] -translate $projCenter[0] $projCenter[1] $projCenter[2] $g;
+        print "method 1";
+        print "\n";
+        select $selObj;
+        string $projNode[] = `ls -type "polyModifier"`;
+        select -addFirst $projNode[(size($projNode)-1)];
+        ShowManipulatorTool;
+    } 
+    
+    else{
+        polyAutoProjection -lm 0 -pb 0 -ibd 1 -cm 0 -l 2 -sc 1 -o 1 -p 6 -ps 0.2 -ws 0 
+        -rx $tmpRotPiv[0] -ry $tmpRotPiv[1] -rz $tmpRotPiv[2]  -translate $projCenter[0] $projCenter[1] $projCenter[2] $g;
+        print "method 2";
+        print "\n";
+        select $selObj;
+        string $projNode[] = `ls -type "polyModifier"`;
+        select -addFirst $projNode[(size($projNode)-1)];
+        ShowManipulatorTool;
+    }
+  }
+}
+
