@@ -1,0 +1,100 @@
+global proc smartCleanCombine(int $inPlace, int $pivot, int $mergeUV)
+{
+    string $currentCtx = `currentCtx`;
+    string $objects[] = `ls -os -l -tr`;
+    string $lastObj[] = `ls -os -l -tail 1 -tr`;
+    //print $objects[0];
+    string $groupParent[] = `listRelatives -f -p $lastObj`;
+    string $sourceParent;
+    string $initList[];
+    int $outlinerPosA;
+    string $combinedMesh[];
+    string $postList[];
+    int $outlinerPosB;
+    int $relativeNum;
+    //float $pivRot[] = `getAttr ($lastObj[0] + ".rotate")`;
+    float $pivRot[] = `xform -q -ws -ro $lastObj[0]`;
+    //string $cmd;
+    undoInfo -openChunk -cn "SmartClearnCombine";
+    setToolTo Move;
+    if(`size $groupParent` != 0){
+       $sourceParent = $groupParent[0];
+       $initList = `listRelatives -f -c $sourceParent`;
+       $outlinerPosA = (stringArrayFind($lastObj[0], 0, $initList) + 1);
+       if ($pivot == 0){
+           $combinedMesh = `polyUnite -ch on -cp -muv $mergeUV -n "combinedMesh#"`;
+       }
+       else if($pivot == 1){
+           $combinedMesh = `polyUnite -ch on -op -muv $mergeUV -n "combinedMesh#"`;
+           manipPivot -o $pivRot[0] $pivRot[1] $pivRot[2];
+           BakeCustomPivot;
+       }
+       else if($pivot == 2){
+           $combinedMesh = `polyUnite -ch on -muv $mergeUV -n "combinedMesh#"`;           
+       }
+       if ($inPlace == 1){
+           parent $combinedMesh[0] $sourceParent;
+           DeleteHistory;
+           $postList = `listRelatives -f -c $sourceParent`;
+           $outlinerPosB = (stringArrayFind($combinedMesh[0], 0, $postList)) + 1;
+           $relativeNum = ($outlinerPosB - $outlinerPosA) * -1;
+           reorder -relative $relativeNum $combinedMesh[0]; 
+       }    
+    }
+    else{
+       $initList = `ls -l -assemblies`;
+       //print $initList;
+       $outlinerPosA = (stringArrayFind($lastObj[0], 0, $initList)) + 1;
+       //print $outlinerPosA;
+       if ($pivot == 0){
+           $combinedMesh = `polyUnite -ch on -cp -muv $mergeUV -n "combinedMesh#"`;
+       }
+       else if($pivot == 1){
+           $combinedMesh = `polyUnite -ch on -op -muv $mergeUV -n "combinedMesh#"`;
+           manipPivot -o $pivRot[0] $pivRot[1] $pivRot[2];
+           BakeCustomPivot;           
+       }
+       else if($pivot == 2){
+           $combinedMesh = `polyUnite -ch on -muv $mergeUV -n "combinedMesh#"`;           
+       }
+       if ($inPlace == 1){       
+           DeleteHistory;
+           $postList = `ls -l -assemblies`;
+           $outlinerPosB = (stringArrayFind($combinedMesh[0], 0, $postList) + 1);
+           //print $outlinerPosB;
+           $relativeNum = ($outlinerPosB - $outlinerPosA) * -1;
+           //print $relativeNum;
+           reorder -relative $relativeNum $combinedMesh[0];
+       }             
+    }
+    setToolTo $currentCtx;
+    if ($currentCtx == "Move" || $currentCtx == "moveSuperContext")
+    {
+        if(`exists "moveSuperContext"`){
+        manipMoveContext -edit -mode 0 "moveSuperContext";
+        }
+        else{
+        manipMoveContext -edit -mode 0 "Move";            
+        }   
+    }
+    else if ($currentCtx == "Rotate" || $currentCtx == "RotateSuperContext")
+    {
+        if(`exists "RotateSuperContext"`){
+        manipMoveContext -edit -mode 0 "RotateSuperContext";
+        }
+        else{
+        manipMoveContext -edit -mode 0 "Rotate";            
+        }   
+    }
+    else if ($currentCtx == "Scale" || $currentCtx == "scaleSuperContext")
+    {
+        if(`exists "scaleSuperContext"`){
+        manipMoveContext -edit -mode 0 "scaleSuperContext";
+        }
+        else{
+        manipMoveContext -edit -mode 0 "Scale";            
+        }   
+    }           
+    undoInfo -closeChunk;
+}
+smartCleanCombine(1, 1, 1);
