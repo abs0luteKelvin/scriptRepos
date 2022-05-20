@@ -1,0 +1,49 @@
+/** 	
+0x0000(none)
+0x0001(vertex)
+0x8000(edge)
+0x0008(face)
+0x0010(texture coordinates) 
+**/
+
+{	
+	string $cmd = "curve";
+	vector $pos;
+	int $counter = 0;
+	string $edge[] = `filterExpand -sm 32 -ex on`;
+	sets -name "initSel";
+    if(size($edge) > 1){
+		string $edgeBorder[] = `ls -sl -fl`;
+		select -r $edgeBorder;
+		vector $edgeLoc = `manipMoveContext -q -position "Move"`;
+		$cmd = ($cmd + " -p "+$edgeLoc.x+" "+$edgeLoc.y+" "+$edgeLoc.z+" ");
+		ConvertSelectionToFaces;
+    }
+	int $faceAmt[] = `polyEvaluate -face`;
+	setToolTo Move;
+	while (size(`filterExpand -sm 34 -ex on`) < $faceAmt[0] || $counter < 50)
+	{	
+    	string $facesSel[] = `filterExpand -sm 34`;
+    	GrowPolygonSelectionRegion;
+   		//GrowPolygonSelectionRegion;
+   		string $facesAfter[] = `ls -sl -fl`;
+   		string $edgePerimeter[] = ls("-l", "-fl",polyListComponentConversion("-ff", "-te", "-bo", $facesAfter));
+   		select -r $edgePerimeter;
+   		//string $edgeNew[] = `polySelectConstraint -m 2 -t 0x8000 -w 2 -rs true`;
+   		//print ($edgeNew[$counter] + "\n");
+   		select -d (`sets -q initSel`);
+   		//select -r $edgeNew;
+   		manipComponentUpdate;
+   		$pos = `manipMoveContext -q -position "Move"`;
+   		//string $edge
+   		//print $edgePerimeter;
+    	//select -r $edgePerimeter;
+    	//print $edgeNew;
+    	$cmd = ($cmd + " -p "+$pos.x+" "+$pos.y+" "+$pos.z+" ");
+    	resetPolySelectConstraint;
+    	select -r $facesAfter; //to retain the correct face selection
+    	//ConvertSelectionToEdgePerimeter;
+    	$counter++;
+	}
+	eval($cmd);
+}
