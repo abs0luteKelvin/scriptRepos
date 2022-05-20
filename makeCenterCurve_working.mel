@@ -1,0 +1,70 @@
+//method 1//
+/** 	
+0x0000(none)
+0x0001(vertex)
+0x8000(edge)
+0x0008(face)
+0x0010(texture coordinates) 
+**/
+//print (`polySelect -er 60 -ns`) // this gives the ring in correct order. just reversed
+
+{
+    string $edge[] = `filterExpand -sm 32 -ex on`;
+    string $meshName = `plugNode $edge[0]`;
+    string $cmd = "curve";
+    float $pivot[];
+    string $token[];
+    tokenize $edge[0] "[:]" $token;
+    int $eID = int($token[1]);
+    int $ringIDList[] = `polySelect -er $eID -ns`;
+    //polySelectConstraint -m 2 -t 0x8000 -w 2;
+    //resetPolySelectConstraint;
+    //string $edgeRingsInit[] = `polySelect -er $eID -ns -ass`;
+    //string $flattenList[] = `ls -os -fl`;
+    //print $edgeRingsInit;
+    int $len = `size($ringIDList)`;
+    vector $pos;
+    setToolTo Move;
+    for($x = 0; $x < $len; $x++){       
+       select -r ($meshName + ".e[" + $ringIDList[($len - 1 -$x)] + "]") ;
+       SelectEdgeLoopSp;
+       $pos = `manipMoveContext -q -position "Move"`;
+       $cmd = ($cmd + " -p "+$pos.x+" "+$pos.y+" "+$pos.z+" ");;
+    }
+    //print $cmd;
+    eval($cmd);
+    CenterPivot;
+}
+
+///method 2
+{
+    string $edges[] = `filterExpand -sm 32 -ex on`; //get the two parrallel(opposite) edges of the tube
+    string $finalCurves[];
+    for($e in $edges){
+       //select -r $e;
+       string $token[];
+       tokenize $e "[:]" $token;
+       int $eID = int($token[1]);
+       //string $selContigEdges[] = `polySelectConstraint -type 0x8000 -propagate 4  -m2a 30 -m3a 90 -returnSelection true`;
+       //SelectContiguousEdges; is unreliable
+       select -r $e;
+       string $edgeloop[] = `polySelect -asSelectString -edgeLoop $eID`; //maya is fking stupid sometimes when it comes to type
+       string $polyToCurve[] = `polyToCurve -form 0 -degree 1 -conformToSmoothMeshPreview 1`;
+       $finalCurves[`size($finalCurves)`] = $polyToCurve[0];
+       //clear $edgeloop;
+       //clear $polyToCurve;
+    }
+    select -r $finalCurves;
+    CenterPivot;
+    string $curveShapes[] = `listRelatives -s $finalCurves`;
+    //print $curveShapes;
+    string $avgCurves = `createNode "avgCurves"`;
+    connectAttr -f ($curveShapes[0] + ".worldSpace[0]") ($avgCurves + ".inputCurve1");
+    connectAttr -f ($curveShapes[1] + ".worldSpace[0]") ($avgCurves + ".inputCurve2");
+    string $midCurveShape = `createNode nurbsCurve`;
+    string $midCurve[] = `listRelatives -p $midCurveShape`;
+    $midCurve[0] = `rename $midCurve "midCurve"`;
+    string $finalShape[] = `listRelatives -s $midCurve[0]`;    
+    connectAttr -f ($avgCurves + ".outputCurve") ($finalShape[0] + ".create");
+    CenterPivot;
+}
