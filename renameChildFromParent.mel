@@ -1,0 +1,30 @@
+global proc renameChildFromParent()
+{
+    string $transforms[] = `ls -sl -type transform`;
+    string $stripedName;
+    string $children[];
+    string $gdChildren[];
+    string $tempName;
+    int $counter = 0;
+	string $paddingString = "";
+    for( $grps in $transforms ){
+        $stripedName = substituteAllString ($grps, "_grp", "");
+        $children = `listRelatives -c -f -type transform $grps`;//gets child of group
+        for ( $c in $children ){
+            if ((`objectType -isType transform $c`) && (!size(`listRelatives -shapes $c`))){
+                continue;
+            }
+            else{
+                $gdChildren[`size $gdChildren`] = $c;
+            }
+        }
+		string $strNum = string($counter);
+  
+			
+		for ($child in $gdChildren){
+			$counter += 1;
+            string $paddingString = `python ("'%03d' % "+$counter)`;		
+			rename $child ($stripedName + "_" + $paddingString + "_geo");
+		}  				
+    }
+}
