@@ -1,0 +1,48 @@
+global proc smartSeparate(int $piv)
+{
+    source renameChildFromParent.mel;
+    if (size(`ls -sl`) < 1 || size(`polyEvaluate -faceComponent`) < 1){
+        print "Please select somes faces";
+    }
+    
+    else{
+		undoInfo -openChunk -cn "SmartCleanSeparate";
+		string $obj[] = `filterExpand -selectionMask 12`;
+		if (`size($obj)` >= 1){
+            polySeparate -ch 0;
+            pickWalk -d up;
+            renameChildFromParent;
+            ungroup;
+            if($piv == 1){
+            	CenterPivot;
+            }		    
+		}
+		else{
+    		string $facesInit[] = `ls -sl -fl`;
+            SelectToggleMode;
+            changeSelectMode -object;
+            string $storeObj[] = `ls -sl -transforms`;
+            string $newComp[] ;
+            string $dupObj[] = `duplicate`;
+            for ($f in $facesInit)
+            {
+                string $comp = `match "\\..+" $f`;
+                $newComp[size($newComp)] = ($dupObj[0] + $comp);
+            }
+    		string $shapeName[] = `listRelatives -s -fullPath $dupObj[0]`;
+            //changeSelectMode -component;
+            //select -deselect $storeObj[0];
+            select -r $newComp;
+            InvertSelection;
+            delete;
+            polyDelFacet $facesInit;
+            delete -ch $storeObj;
+            changeSelectMode -object;
+            select -r $dupObj[0];
+            if($piv == 1){
+            	CenterPivot;
+            }
+    	}
+    	undoInfo -closeChunk;
+    	}
+}
