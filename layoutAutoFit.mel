@@ -1,0 +1,46 @@
+global proc string[] getTransform(string $inShape[]) {
+     string $transform[];
+     for ($node in $inShape) {
+       if ( "transform" != `nodeType $node` ) {
+         // If given node is already a transform, just pass on through
+         string $parents[] = `listRelatives -fullPath -allParents $node`;
+         appendStringArray($transform, $parents, size($parents));
+          }
+        }
+return $transform;
+}
+
+global proc string[] getTransformsFromComponent(){
+     string $outShapes[] = `ls -selection -objectsOnly`;
+      //print $outShapes;
+     string $transformsReturned[] = `getTransform($outShapes)`;
+     return $transformsReturned;
+
+}
+
+global proc u3dLayoutAutoFit()
+{
+    ConvertSelectionToUVs;
+    string $uvSel[] = `ls -sl`; 
+    float $BBox[] = `polyEvaluate -boundingBoxComponent2d $uvSel`;
+    float $MinU =  `floor $BBox[0]`;
+    float $MaxU =  $MinU + 1;
+    float $MinV =  `floor $BBox[2]`;
+    float $MaxV =  $MinV + 1;
+    ////this section below is copied from performPolyLayoutUV.mel with slight modifications
+    string $finalSel[] = `getTransformsFromComponent`;
+    string $topoValidCmd = "u3dTopoValid -type"; // check topo error type
+    for ($i in $finalSel)
+    {
+    	$topoValidCmd=($topoValidCmd + " " + $i); //setup cmd
+    }
+    string $topoErrors[] = eval($topoValidCmd); 
+    
+    if (size($topoErrors) > 0){
+        Unfold3DFixNonManifold($topoErrors); //fix non manifold errors
+    }
+	u3dLayout -res 4096 -spc 0.0045 -mar 0.01 -box $MinU $MaxU $MinV $MaxV;
+	texPivotCycle selection middle;
+}
+
+u3dLayoutAutoFit;
