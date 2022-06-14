@@ -1,0 +1,48 @@
+proc dp_MergeUVSets() {
+    // get selection
+    string $sel[] = `ls -sl`;
+    //figure out which UV window to query for UV sets
+    string $texWinName[] = `getPanel -sty polyTexturePlacementPanel`;
+
+    for ( $obj in $sel ) {
+        select $obj;
+        //query all UV sets on selection
+        $UVs = `polyUVSet -q -auv`;
+        for ($set in $UVs) {
+            $mapName = $set;
+            polyUVSet -cuv -uvs $mapName;
+            int $size[] = `polyEvaluate -uvcoord`;
+            //if there are no UVs in the current UV Set, delete it
+            if ( $size[0] == 0 && $mapName != "map1") {
+                polyUVSet -delete;
+            }
+        }
+
+        //query all UV sets on selection again (should only be two left now, map1 which can't be deleted, and whatever set contains the UVs)
+        $UVs = `polyUVSet -q -auv`;
+
+        for ($set in $UVs) {
+            string $mapName = $set;
+            polyUVSet -cuv -uvs $mapName;
+            int $size[] = `polyEvaluate -uvcoord`;
+            //if not on map 1 and it's got the UVs, copy them to map1 and delete this set (should result in only one UV Set, map1)
+            if ($mapName != "map1" && $size[0] > 0) {
+                polyUVSet -cp -nuv "map1";
+                polyUVSet -delete;
+            }
+            //if not on map1 and it's still somehow empty, delete it
+            else if ($mapName != "map1" && $size[0] == 0) {
+                polyUVSet -delete;
+            }
+        }
+
+        //final check to make sure there is only one set remaining with UVs inside it. at this point it should at least be manageable to fix manually
+        select $obj;
+        $UVs = `polyUVSet -q -auv`;
+        if (`size $UVs` > 1) {
+            warning ( "Check " + $obj + "!  Found multiple UV Sets with UV information.");
+        }
+    }
+}
+
+dp_MergeUVSets;
