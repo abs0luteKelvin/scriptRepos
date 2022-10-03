@@ -1,0 +1,55 @@
+global proc quadSplitEndConnect(){
+    //int $vertBefore[] = `polyEvaluate -v`;
+    string $undoChunk = `undoInfo -openChunk -chunkName "quadSplitConnect"`;
+    int $oldEdgeAmt[] = `polyEvaluate -e`;
+    string $selFaces[] = `ls -sl -fl -l`;
+    string $mesh = plugNode($selFaces[0]);
+    string $innerEdge[] = ls("-l","-fl",polyListComponentConversion("-ff", "-te", "-in", $selFaces));
+    //print $innerEdge;
+    string $innerVerts[] =  ls("-l","-fl",polyListComponentConversion("-fe", "-tv", $innerEdge));
+    print $innerVerts;
+    string $borderEdges[] = ls("-l","-fl",polyListComponentConversion("-ff", "-te", "-bo", $selFaces));
+    string $borderVerts[] = ls("-l","-fl",polyListComponentConversion("-fe", "-tv", $borderEdges));
+    //polySubdivideEdge -divisions 1 $innerEdge;
+    //polyPoke $selFaces;
+    ConvertSelectionToContainedEdges;
+    polySelectConstraint -pp 1 -t 0x8000;
+    string $grownEdges[] = `ls -sl -fl -l`;
+    ConvertSelectionToVertices;
+    string $grownVerts[] = `ls -sl -fl -l`;
+    //print $grownVerts;
+    string $removeDupList[] = stringArrayRemove($borderVerts, $grownVerts); //remove borderList to get the subtract
+    //print $removeDupList;
+    string $unwantedList[] = stringArrayCatenate($removeDupList,$innerVerts); // combine duplist with innerVerts to create one final list to remove
+    //print $unwantedList;
+    string $remainingList[] = stringArrayRemove($unwantedList,$grownVerts);
+    select -r $remainingList;
+    ConnectComponents;
+	int $newEdgesAmt[] = `polyEvaluate -e $mesh`;
+	int $diffEdgeAmt = $newEdgesAmt[0] - $oldEdgeAmt[0];
+	string $newEdges[];
+	for($i = 1 ; $i <= $diffEdgeAmt; $i++){
+		$newEdges[($i-1)] = ($mesh + ".e[" + ($newEdgesAmt[0] - $i) + "]");
+	} 
+	//select -r $newEdges;
+	//select -add $innerEdge;
+	string $connectEdges[] = stringArrayCatenate($newEdges,$innerEdge);
+	select -r $connectEdges;
+    string $newVerts[];
+	int $vertsBefore[] = `polyEvaluate -v $mesh`;
+	polyConnectComponents $connectEdges;
+	int $vertsAfter[] = `polyEvaluate -v $mesh`;
+	int $vertDiffAmt = $vertsAfter[0] - $vertsBefore[0];
+	for($j = 1 ; $j <= $vertDiffAmt; $j++){
+		$newVerts[($j-1)] = ($mesh + ".vtx[" + ($vertsAfter[0] - $j) + "]");
+	}
+	//print $newVerts;
+	string $splitEdge[] = ls("-l", "-fl", polyListComponentConversion("-fv", "-te", "-in", $newVerts));
+    dR_DoCmd("modeEdge");
+    select -r $splitEdge;
+    scale -cs -ls -r -xc surface -xn 1 0.66 1 ;
+    undoInfo -closeChunk;
+    //polyMoveEdge -localScaleX 0.330 $splitEdge;
+     //stringArrayRemove($items, $list);
+    //polyQuad;
+}
