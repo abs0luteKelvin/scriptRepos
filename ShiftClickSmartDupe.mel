@@ -1,0 +1,90 @@
+// ===========================================================================
+// Copyright 2019 Autodesk, Inc. All rights reserved.
+//
+// Use of this software is subject to the terms of the Autodesk license
+// agreement provided at the time of installation or download, or which
+// otherwise accompanies this software in either electronic or hard copy form.
+// ===========================================================================
+source getComponentID.mel; //modified by Kelvin Tam
+
+global proc ShiftClickSmartDupe( int $dupType )
+{
+	int $nbObj = size(`ls -sl -dag`);
+	if ($nbObj > 0)
+	{
+		if( $dupType == 1 )
+			duplicate;
+		else if( $dupType == 2 )
+			instance;
+		return;
+	}
+
+	int $doHistory = `constructionHistory -query -toggle`;
+	int $index = 0;
+	string $cursel[];
+
+	string $faces[] = `filterExpand -ex true -sm 34`;
+	if (0 < size($faces))
+	{
+		$faces = `polyListComponentConversion -ff -fe -fv -fuv -tf`;
+		while( size($faces) > $index )
+		{
+			$index = `polyNextSelectionBatch $faces $cursel $index`;
+			string $res[] = `polyExtrudeFacet -constructionHistory $doHistory -keepFacesTogether 1 -divisions 1 -twist 0 -taper 1 -offset 0 -thickness 0 -smoothingAngle 30 -reverseAllFaces 0 $cursel`;
+			if (size($res) > 0)
+				select -add $res;
+		}
+		return;
+	}
+
+	string $edges[] = `filterExpand -ex true -sm 32`;
+	if (0 < size($edges))
+	{
+		manipComponentUpdate; // To update manip when undoing smart edge extrude (MAYA-84983)
+		$edges = `polyListComponentConversion -ff -fe -fv -fuv -te`;
+		while( size($edges) > $index )
+		{
+			$index = `polyNextSelectionBatch $edges $cursel $index`;
+			string $res[] = `polyExtrudeEdge -constructionHistory $doHistory -keepFacesTogether 1 -divisions 1 -twist 0 -taper 1 -offset 0 -thickness 0 -smoothingAngle 30 $cursel`;
+			if (size($res) > 0)
+				select -add $res;
+		}
+		return;
+	}
+
+	string $verts[] = `filterExpand -ex true -sm 31`;
+	if (0 < size($verts))
+	{
+		while( size($verts) > $index )
+		{
+			$index = `polyNextSelectionBatch $verts $cursel $index`;
+			string $res[] = `polyExtrudeVertex -constructionHistory $doHistory -width 0.5 -length 0 -divisions 1 $cursel`;
+			if (size($res) > 0)
+				select -add $res;
+		}
+		return;
+	}
+
+////cv curve extrude function////
+	string $cvs[] = `filterExpand -ex true -sm 28`;
+	float $pos[] = `pointPosition $cvs[0]`;
+	string $nurbsCurve = longNameOf(`plugNode $cvs[0]`);
+	int $cvCount = `getAttr -s ($nurbsCurve + ".cp")`;
+	int $idx[] = `getComponentID`;
+	if (size($cvs) > 0)
+	{
+		if (($cvCount - 1) == $idx[(size($idx)) - 1]){
+			curve -os -a -p $pos[0] $pos[1] $pos[2] $nurbsCurve;
+			int $cvAmtNew = (`getAttr -s ($nurbsCurve + ".cp")`) - 1;
+			select -r ($nurbsCurve + ".cv[" + $cvAmtNew + "]");
+		}
+		else if($idx[0] == 0){
+			insertKnotCurve -ch 1 -cos on -nk 1 -add 1 -ib 0 -rpo 1 ($nurbsCurve + ".u[0.000001]");
+			rebuildCurve -ch 1 -rpo 1 -rt 0 -end 0 -kr 0 -kcp 1 -kep 0 -kt 0 -s 90 -d 3 -tol 0.01 $nurbsCurve;
+			hilite -r $nurbsCurve;
+			SelectVertexMask;			
+			select -add ($nurbsCurve + ".cv[0]");		
+		}
+		return;
+	}
+}
